@@ -2,82 +2,79 @@
 // Onyx
 //////////////////////////////////////////////////////////////////////////////80
 // Copyright (c) 2020 Liam Siira (liam@siira.io), distributed as-is and without
-// warranty under the MIT License. See [root]/license.md for more.
+// warranty under the MIT License. See [root]/docs/LICENSE.md for more.
 // This information must remain intact.
 //////////////////////////////////////////////////////////////////////////////80
-// Copyright (c) 2019 Vladimir Carrer
-// Source: https://github.com/vladocar/femtoJS
+// Sources/Inspirations:
+//	https://github.com/vladocar/femtoJS
+//	https://github.com/fabiospampinato/cash
 //////////////////////////////////////////////////////////////////////////////80
 
-(function(global) {
+(function() {
 	'use strict';
 
-	let alwaysReturn = [
-		window,
-		document,
-		document.documentElement
-	];
+	const genSelector = (element) => {
+		if (element.id) return ('#' + element.id);
 
-	let argToElement = function(selector) {
-		if (!selector) {
-			return false;
-		}
+		let path = [],
+			parent,
+			siblings,
+			node,
+			tag;
 
-		if (alwaysReturn.includes(selector)) {
-			return selector;
-		} else if (typeof selector === 'string') {
-			const tagName = /^<(.+)>$/.exec(selector);
-
-			if (tagName !== null) {
-				// https://stackoverflow.com/questions/494143/creating-a-new-dom-element-from-an-html-string-using-built-in-dom-methods-or-pro
-				var template = document.createElement('template');
-				selector = selector.trim(); // Never return a text node of whitespace as the result
-				template.innerHTML = selector;
-				return template.content.firstChild;
-				// return document.createElement(tagName[1]);
+		while (parent = element.parentNode) {
+			tag = element.tagName;
+			if (element.id) {
+				path.unshift('#' + element.id);
+				break;
 			} else {
-				return document.querySelector(selector);
+				siblings = [].filter.call(parent.children, sibling => sibling.tagName === tag);
+				if (siblings.length === 1) {
+					node = tag;
+				} else {
+					node = `${tag}:nth-child(${1+[].indexOf.call(siblings, element)})`;
+				}
+				node = node.toLowerCase();
 			}
-		} else if (selector instanceof HTMLElement) {
-			return selector;
-		} else if (selector.isOnyx) {
-			return selector.el;
+			path.unshift(node);
+			element = parent;
 		}
 
-		throw new TypeError('Expected String | HTMLElement | OnyxJS; got ' + typeof selector);
-
+		return path.join(' > ');
 	};
 
-	const isSelectorValid = function(selector) {
+	// const checkHTML = function(html) {
+	// 	var doc = document.createElement('div');
+	// 	doc.innerHTML = html;
+	// 	return (doc.innerHTML === html);
+	// };
+
+	const parseHTML = function(str) {
+		if (!window.DOMParser) return false;
 		try {
-			document.createDocumentFragment().querySelector(selector);
-		} catch (e) {
+			var parser = new DOMParser();
+			var doc = parser.parseFromString(str, 'text/html');
+			return doc.body.firstChild;
+		} catch (err) {
 			return false;
 		}
-		return true;
 	};
 
-	let pxStyles = ['height', 'width', 'top', 'left', 'right', 'bottom'];
-	// let classTypes = ['add', 'contains', 'toggle', 'remove', 'replace'];
-	let domTypes = ['data', 'innerHTML', 'innerText', 'value'];
-
-	// This attach function will probably be removed as it's honestly
-	// more of an overcomplication than a helper, but it also just need
-	// optimization. The goal is to allow you to add child selectors to
-	// the event handler.
-	let attach = (element, action, type, children, fn) => {
-		//https://stackoverflow.com/questions/2068272/getting-a-jquery-selector-for-an-element
-		let sel = children;
-		if (typeof(selector) === 'function') {
-			fn = selector;
-			children = null;
-		} else {
-			sel = element + ' ' + children;
+	const genElement = function(str) {
+		try {
+			let element = document.createElement(str);
+			return (element.toString() !== '[object HTMLUnknownElement]') ? element : false;
+		} catch (err) {
+			return false;
 		}
-		events[action](type, sel, fn);
 	};
 
-	let setClass = function(element, type, cls, nCls) {
+
+	const pxStyles = ['height', 'width', 'top', 'left', 'right', 'bottom'];
+	// let classTypes = ['add', 'contains', 'toggle', 'remove', 'replace'];
+	const domTypes = ['data', 'innerHTML', 'innerText', 'value'];
+
+	const setClass = function(element, type, cls, nCls) {
 		if (type === 'replace') {
 			setClass(element, 'remove', cls);
 			setClass(element, 'add', nCls);
@@ -101,7 +98,7 @@
 		}
 	};
 
-	let setStyle = function(element, key, value) {
+	const setStyle = function(element, key, value) {
 		if (typeof key === 'string') {
 			if (typeof(value) !== 'undefined') {
 				if (pxStyles.includes(key) && isFinite(value) && value !== '') {
@@ -118,7 +115,7 @@
 		}
 	};
 
-	let getSize = (element, type, outer) => {
+	const getSize = (element, type, outer) => {
 		var init = {
 			'display': element.style.display,
 			'visibility': element.style.visibility,
@@ -151,30 +148,7 @@
 		return size;
 	};
 
-	let insertToAdjacent = (location, element) => function(target) {
-		if (typeof target === 'string') {
-			target = argToElement(target);
-			target.insertAdjacentElement(location, element);
-		} else if (target instanceof HTMLElement) {
-			target.insertAdjacentElement(location, element);
-		} else if ('isOnyx' in target) {
-			target = target.el;
-			target.insertAdjacentElement(location, element);
-		}
-	};
-
-	let insertAdjacent = (location, element) => function(addition) {
-		if (typeof addition === 'string') {
-			element.insertAdjacentHTML(location, addition);
-		} else if (addition instanceof HTMLElement) {
-			element.insertAdjacentElement(location, addition);
-		} else if ('isOnyx' in addition) {
-			addition = addition.el;
-			element.insertAdjacentElement(location, addition);
-		}
-	};
-
-	let IO = (element, type, value, key) => {
+	const IO = (element, type, value, key) => {
 		if (domTypes.includes(type)) {
 			if (typeof(value) !== 'undefined') {
 				element[type] = value;
@@ -200,111 +174,302 @@
 		}
 	};
 
-	let search = (element, type, selector, all) => {
+	const search = (element, type, selector, all) => {
 		var matches = [];
 		if (type === 'find') {
 			var nodes = element.querySelectorAll(selector);
 			for (var i = 0; i < nodes.length; i++) {
-				matches.push(onyx(nodes[i]));
+				matches.push(init(nodes[i]));
 			}
 		} else {
 			var match = type === 'children' ? element.firstElementChild : element.parentNode.firstElementChild;
 
 			while (match) {
 				if ((!selector || match.matches(selector)) && match !== element) {
-					matches.push(onyx(match));
+					matches.push(init(match));
 				}
 				match = match.nextElementSibling;
 			}
 		}
 		if (all) {
-			return matches[0] || false;
-		} else {
 			return matches;
+		} else {
+			return matches[0] || null;
 		}
 	};
 
-	let triggerEvent = function(element, types) {
-		types = types.split(',');
-		types.forEach(function(type) {
-			type = type.trim();
-			if (element && type) {
-
-				var event = new CustomEvent(type, {
-					bubbles: true,
-					cancelable: true
-				});
-				return element.dispatchEvent(event);
-			}
-
-		});
+	const insertToAdjacent = function(location, element, target) {
+		if (typeof target === 'string') {
+			target = init(target).element;
+			target.insertAdjacentElement(location, element);
+		} else if (target instanceof HTMLElement) {
+			target.insertAdjacentElement(location, element);
+		} else if (target instanceof Onyx) {
+			target = target.element;
+			target.insertAdjacentElement(location, element);
+		}
 	};
 
-	const onyx = function(selector) {
-		let element = argToElement(selector);
-		selector = isSelectorValid(selector) ? selector : element;
+	const insertAdjacent = function(location, element, addition) {
+		if (typeof addition === 'string') {
+			element.insertAdjacentHTML(location, addition);
+		} else if (addition instanceof HTMLElement) {
+			element.insertAdjacentElement(location, addition);
+		} else if (addition instanceof Onyx) {
+			addition = addition.element;
+			element.insertAdjacentElement(location, addition);
+		}
+	};
 
-		if (!element) return;
+	// Nifty and potentially viable HTML Parse function
+	const idRegex = /^#(?:[\w-]|\\.|[^\x00-\xa0])*$/,
+		fragmentRegex = /^\s*<(\w+)[^>]*>/,
+		singleTagRegex = /^<(\w+)\s*\/?>(?:<\/\1>)?$/;
 
+	const classRe = /^\.(?:[\w-]|\\.|[^\x00-\xa0])*$/,
+		htmlRegex = /<.+>/,
+		tagRe = /^\w+$/;
+
+	let alwaysReturn = [
+		window,
+		document,
+		document.documentElement
+	];
+
+	/** Class */
+	function Onyx(selector, context) {
+		if (!selector) return false;
+
+		context = context || document;
+
+		if (selector instanceof Onyx) {
+			return selector;
+		} else if (alwaysReturn.includes(selector)) {
+			this.element = selector;
+			this.selector = 'document';
+
+		} else if (typeof selector === 'string') {
+			if (idRegex.test(selector)) {
+				this.element = context.getElementById(selector.slice(1));
+			} else if (htmlRegex.test(selector)) {
+				this.element = parseHTML(selector);
+			} else {
+				this.element = context.querySelector(selector);
+			}
+
+
+			this.selector = selector;
+
+
+		} else if (selector instanceof HTMLElement) {
+			this.selector = genSelector(selector);
+			this.element = selector;
+		} else {
+			throw new TypeError('Expected String | HTMLElement | Onyx; got ' + typeof selector);
+		}
+
+		if (!this.element) return false;
+
+		this.tagName = this.element.tagName;
+		this.type = this.element.type;
+		// if (this.element) {
+		// 	log(genSelector(this.element));
+		// }
+	}
+
+	Onyx.prototype.init = function(selector) {
+		return new Onyx(selector);
+	};
+
+	Onyx.prototype.create = function(str) {
+		let element = htmlRegex.test(str) ? parseHTML(str) : genElement(str);
+		return element ? new Onyx(element) : false;
+	};
+
+	let fnc = Onyx.prototype,
+		init = fnc.init,
+		create = fnc.create;
+
+	fnc.isOnyx = true;
+
+	fnc.on = function(t, fn) {
+		console.log(`%cForceEventCapture: ${this.selector}`, 'color:#F42;');
+		if (this.element) return this.element.addEventListener(t, fn);
+	};
+	fnc.off = function(t, fn) {
+		console.log(`%cForceEventCapture: ${this.selector}`, 'color:#F42;');
+		if (this.element) return this.element.addEventListener(t, fn);
+	};
+
+	fnc.focus = function() {
+		if (this.element) return this.element.focus();
+	};
+	fnc.click = function() {
+		if (this.element) return this.element.click();
+	};
+	fnc.remove = function() {
+		if (this.element) return this.element.remove();
+	};
+	fnc.clone = function() {
+		if (this.element) return this.element.cloneNode(true);
+	};
+
+	fnc.show = function(d) {
+		if (this.element) return (this.element.style.display = d || 'block');
+	};
+	fnc.hide = function(d) {
+		if (this.element) return (this.element.style.display = d || 'none');
+	};
+
+	fnc.css = function(k, v) {
+		if (this.element) return setStyle(this.element, k, v);
+	};
+
+	fnc.data = function(k, v) {
+		if (this.element) return IO(this.element, 'data', v, k);
+	};
+	fnc.prop = function(k, v) {
+		if (this.element) return IO(this.element, 'prop', v, k);
+	};
+	fnc.html = function(v) {
+		if (this.element) return IO(this.element, 'innerHTML', v);
+	};
+	fnc.text = function(v) {
+		if (this.element) return IO(this.element, 'innerText', v);
+	};
+	fnc.value = function(v) {
+		if (this.element) return IO(this.element, 'value', v);
+	};
+	fnc.attr = function(k, v) {
+		if (this.element) return IO(this.element, 'attr', v, k);
+	};
+	fnc.removeAttr = function(k) {
+		if (this.element) return this.element.removeAttribute(k);
+	};
+
+	fnc.empty = function(k, v) {
+		if (this.element) return (this.element.innerHTML = this.element.value = '');
+	};
+
+
+	fnc.addClass = function(c) {
+		if (this.element) return setClass(this.element, 'add', c);
+	};
+	fnc.hasClass = function(c) {
+		if (this.element) return setClass(this.element, 'contains', c);
+	};
+	fnc.removeClass = function(c) {
+		if (this.element) return setClass(this.element, 'remove', c);
+	};
+	fnc.switchClass = function(c, n) {
+		if (this.element) return setClass(this.element, 'switch', c, n);
+	};
+	fnc.toggleClass = function(c) {
+		if (this.element) return setClass(this.element, 'toggle', c);
+	};
+	fnc.replaceClass = function(c, n) {
+		if (this.element) return setClass(this.element, 'replace', c, n);
+	};
+
+	fnc.index = function(s) {
+		if (this.element) return [].indexOf.call(this.parentNode.children, element);
+	};
+	fnc.parent = function(s) {
+		if (this.element) return (s ? init(this.element.closest(s)) : init(this.element.parentElement));
+	};
+	fnc.find = function(s) {
+		if (this.element) return init(this.element.querySelector(s));
+	};
+	fnc.findAll = function(s) {
+		if (this.element) return search(this.element, 'find', s, true);
+	};
+	fnc.sibling = function(s) {
+		if (this.element) return search(this.element, 'siblings', s);
+	};
+	fnc.siblings = function(s) {
+		if (this.element) return search(this.element, 'siblings', s, true);
+	};
+	fnc.children = function(s) {
+		if (this.element) return search(this.element, 'children', s, true);
+	};
+
+	fnc.prev = function(s) {
+		if (this.element) return this.element.previousSibling;
+	};
+
+	fnc.next = function(s) {
+		if (this.element) return this.element.nextSibling;
+	};
+
+
+	fnc.append = function(addition) {
+		if (this.element) return insertAdjacent('beforeend', this.element, addition);
+	};
+	fnc.prepend = function(addition) {
+		if (this.element) return insertAdjacent('afterbegin', this.element, addition);
+	};
+	fnc.before = function(addition) {
+		if (this.element) return insertAdjacent('beforebegin', this.element, addition);
+	};
+	fnc.after = function(addition) {
+		if (this.element) return insertAdjacent('afterend', this.element, addition);
+	};
+
+	fnc.insertLast = function(target) {
+		if (this.element) return insertToAdjacent('beforeend', this.element, target);
+	};
+	fnc.insertFirst = function(target) {
+		if (this.element) return insertToAdjacent('afterbegin', this.element, target);
+	};
+	fnc.insertBefore = function(target) {
+		if (this.element) return insertToAdjacent('beforebegin', this.element, target);
+	};
+	fnc.insertAfter = function(target) {
+		if (this.element) return insertToAdjacent('afterend', this.element, target);
+	};
+
+	fnc.replaceWith = function(newElement) {
+		if (this.element) {
+			this.element.replaceWith(newElement);
+			this.element = newElement;
+			return true;
+		}
+	};
+
+	// fnc.offset = function() {
+	// 	if (this.element) return this.element.getBoundingClientRect();
+	// };
+	fnc.offset = function() {
+		if (!this.element) return;
+
+		let rect = this.element.getBoundingClientRect();
 		return {
-			focus: () => element.focus(),
-			display: (d) => element.style.display = d,
-			trigger: (event) => triggerEvent(element, event),
-
-			css: (k, v) => setStyle(element, k, v),
-
-			data: (v) => IO(element, 'data', v),
-			prop: (k, v) => IO(element, 'prop', v, k),
-			html: (v) => IO(element, 'innerHTML', v),
-			text: (v) => IO(element, 'innerText', v),
-			value: (v) => IO(element, 'value', v),
-
-			empty: () => element.innerHTML = element.value = '',
-
-			attr: (k, v) => IO(element, 'attr', v, k),
-			removeAttr: (k) => element.removeAttribute(k),
-
-			addClass: (c) => setClass(element, 'add', c),
-			hasClass: (c) => setClass(element, 'contains', c),
-			removeClass: (c) => setClass(element, 'remove', c),
-			switchClass: (c, n) => setClass(element, 'switch', c, n),
-			toggleClass: (c) => setClass(element, 'toggle', c),
-			replaceClass: (c, n) => setClass(element, 'replace', c, n),
-
-			find: (s) => onyx(element.querySelector(s)),
-			parent: (s) => s ? onyx(element.closest(s)) : onyx(element.parentElement),
-			findAll: (s) => search(element, 'find', s),
-			sibling: (s) => search(element, 'siblings', s, true),
-			siblings: (s) => search(element, 'siblings', s),
-			children: (s) => search(element, 'children', s),
-
-			before: insertAdjacent('beforebegin', element),
-			after: insertAdjacent('afterend', element),
-			first: insertAdjacent('afterbegin', element),
-			last: insertAdjacent('beforeend', element),
-
-			insertBefore: insertToAdjacent('beforebegin', element),
-			insertAfter: insertToAdjacent('afterend', element),
-			insertFirst: insertToAdjacent('afterbegin', element),
-			insertLast: insertToAdjacent('beforeend', element),
-
-			prepend: insertAdjacent('afterbegin', element),
-			append: insertAdjacent('beforeend', element),
-
-			replace: (el) => element.replaceWith(el),
-			remove: () => element.remove(),
-
-			height: (o) => getSize(element, 'height', o),
-			width: (o) => getSize(element, 'width', o),
-
-			tagName: () => element.tagName,
-			type: () => element.type,
-			node: () => element,
-			el: element,
-			exists: () => (element && element.nodeType),
-			isOnyx: true
+			top: rect.top + window.pageYOffset,
+			left: rect.left + window.pageXOffset
 		};
 	};
 
-	global.oX = onyx;
-})(this);
+	fnc.clientHeight = function() {
+		if (this.element) return this.element.clientHeight;
+	};
+	fnc.clientWidth = function() {
+		if (this.element) return this.element.clientWidth;
+	};
+	fnc.height = function(o) {
+		if (this.element) return getSize(this.element, 'height', o);
+	};
+	fnc.width = function(o) {
+		if (this.element) return getSize(this.element, 'width', o);
+	};
+
+	fnc.style = function() {
+		if (this.element) return this.element.style;
+	};
+
+	fnc.exists = function() {
+		return (this.element && this.element.nodeType) ? this : false;
+	};
+
+	window.oX = window.$ = init;
+	window.$$ = create;
+})();

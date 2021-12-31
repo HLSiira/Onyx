@@ -1,6 +1,6 @@
 
 <div align="center">
-    <h1><a href="https://github.com/hlsiira/Onyx">Onyx</a> - A concentrated library for DOM manipulation.</h1>
+    <h1><a href="https://github.com/hlsiira/Onyx">Onyx</a> - A minimalist (ES6) library for DOM manipulation.</h1>
 </div>
 
 <div align="center">
@@ -17,7 +17,7 @@ Onyx is a minimalist library for DOM manipulation, with jQuery inspired syntax.u
 <p><code>Crazily Condensed:</code> The minified version is less than ~1K, roughly 500b gzipped.</p>
 <p><code>Easily Extensible:</code> Onyx is easily modifyable to meet your needs.</p>
 
-Below is the functions returned as an object when creating a new Onyx refence.
+Below are the functions returned as an object when creating a new Onyx refence.
 ```javascript
 oX('#selector'){
 	focus: ()               => element.focus(),
